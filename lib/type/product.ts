@@ -5,9 +5,7 @@ export type ProductResponse = {
   price: number;
   description: string;
   // category: category;
-  images: [
-    "https://i.pinimg.com/1200x/38/cd/ad/38cdad22a8004d5911a7b369096e39bf.jpg",
-  ];
+  images: string[];
 };
 
 export type ProductRequest = {

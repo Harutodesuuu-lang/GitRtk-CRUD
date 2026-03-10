@@ -1,3 +1,5 @@
+import AddCartBottom from "@/component/addToCard";
+import VariableBottom from "@/component/bottom-incre-decre";
 import { ProductResponse } from "@/lib/type/product";
 import Image from "next/image";
 
@@ -23,20 +25,27 @@ export default async function ProductDetailPage({
   // console.log("product", product);
 
   return (
-    <main>
-      <section>
-        <h1 className="text-center">Product Detail Page {id}</h1>
-        <h2>{product.id}</h2>
-        <h2>{product.title}</h2>
-        <h2>{product.slug}</h2>
-        <Image
-          src={product.images[0]}
-          alt="product.img"
-          width={500}
-          height={500}
-        />
-        <h2>{product.price}</h2>
-        <h2>{product.description}</h2>
+    <main className="container mx-auto flex min-h-screen items-center px-4 py-8">
+      <section className="mx-auto max-w-4xl rounded-2xl border-4 border-gray-400 bg-white p-6 text-slate-900 md:p-10 dark:border-gray-600 dark:bg-transparent dark:text-slate-100">
+        <div className="grid text-center justify-center items-center justify-items-center gap-3">
+          <h1 className="text-center text-2xl font-semibold">
+            Product Detail Page {id}
+          </h1>
+          <h2>Product ID: {product.id}</h2>
+          <h2>{product.title}</h2>
+          <h2>{product.slug}</h2>
+          <Image
+            src={product.images[0]}
+            alt="product.img"
+            width={500}
+            height={500}
+            className="mx-auto rounded-lg ring-1 ring-slate-200 dark:ring-slate-700"
+          />
+          <h2>Price: {product.price} USD</h2>
+          <h2>{product.description}</h2>
+          <VariableBottom unitPrice={product.price} />
+          <AddCartBottom unitPrice={product.price} />
+        </div>
       </section>
     </main>
   );

@@ -6,6 +6,7 @@ import ProductLoading from "./products/loading";
 import { ThemeProvider } from "@/components/theme-provider";
 import Header from "@/components/header";
 import { Navbar1 } from "@/components/navbar1";
+import StoreProvider from "./StoreProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,17 +33,19 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Navbar1 />
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <Header />
-          <Suspense fallback={<ProductLoading />}>{children}</Suspense>
-          {/* Suspense use eto stream data if it didn't work it gives skeleton */}
-        </ThemeProvider>
+        <StoreProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <Navbar1 />
+            <Header />
+            <Suspense fallback={<ProductLoading />}>{children}</Suspense>
+            {/* Suspense use eto stream data if it didn't work it gives skeleton */}
+          </ThemeProvider>
+        </StoreProvider>
       </body>
     </html>
   );
