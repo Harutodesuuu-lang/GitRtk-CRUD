@@ -7,7 +7,7 @@ import ICard from "@/component/i-tech-cards/i-card";
 import TextCard from "@/component/i-tech-cards/text-card";
 import ProductCard from "@/components/product/productcard";
 
-import UserCardId from "@/components/product/usercardId";
+import SingleCardId from "@/components/product/singleproduct";
 export const metadata: Metadata = {
   title: "Ishop -Home",
   description: "I shop probode electronic",
@@ -18,7 +18,7 @@ export default function Home() {
       <ICard />
       <TextCard />
       <ProductCard />
-      <UserCardId />
+      <SingleCardId id={4} />
       <ProductListClient fetchProducts={fetchAllProducts()} />
     </main>
   );

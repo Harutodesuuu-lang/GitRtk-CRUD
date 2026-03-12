@@ -6,10 +6,10 @@ export const productApi = fakeStoreApi.injectEndpoints({
     getProducts: builder.query<ProductResponse[], void>({
       query: () => `/api/v1/products`,
     }),
-    getUserById: builder.query<ProductResponse[], number>({
-      query: (id) => `/api/v1/users`,
+    getProductById: builder.query<ProductResponse, number>({
+      query: (id) => `/api/v1/products/${id}`,
     }),
   }),
 });
 
-export const { useGetProductsQuery, useGetUserByIdQuery } = productApi;
+export const { useGetProductsQuery, useGetProductByIdQuery } = productApi;
