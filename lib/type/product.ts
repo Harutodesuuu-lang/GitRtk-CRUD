@@ -4,8 +4,8 @@ export type ProductResponse = {
   slug: string;
   price: number;
   description: string;
-  // category: category;
-  images: string[];
+  category: category;
+  images: [];
 };
 
 export type ProductRequest = {
