@@ -7,7 +7,7 @@ const baseAPI = process.env.NEXT_PUBLIC_API;
 export async function fetchAllProducts() {
   const data = await fetch(`${baseAPI}/api/v1/products`, {
     method: "GET",
-    headers: { ContentType: "application/json" },
+    headers: { "Content-Type": "application/json" },
   });
   const response = await data.json();
   return response;
@@ -17,7 +17,7 @@ export async function fetchAllProducts() {
 export async function insertProduct(product: ProductRequest) {
   const data = await fetch(`${baseAPI}/api/v1/products`, {
     method: "POST",
-    headers: { ContentType: "application/json" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(product),
   });
   const response = await data.json();

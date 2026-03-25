@@ -4,9 +4,9 @@ import "./globals.css";
 import { Suspense } from "react";
 import ProductLoading from "./products/loading";
 import { ThemeProvider } from "@/components/theme-provider";
-import Header from "@/components/header";
-import { Navbar1 } from "@/components/navbar1";
 import StoreProvider from "./StoreProvider";
+import SiteChrome from "@/components/site-chrome";
+import { Toaster } from "@/components/ui/sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -40,9 +40,12 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            <Navbar1 />
-            <Header />
-            <Suspense fallback={<ProductLoading />}>{children}</Suspense>
+            <SiteChrome>
+              <Suspense fallback={<ProductLoading />}>
+                <Toaster />
+                {children}
+              </Suspense>
+            </SiteChrome>
             {/* Suspense use eto stream data if it didn't work it gives skeleton */}
           </ThemeProvider>
         </StoreProvider>

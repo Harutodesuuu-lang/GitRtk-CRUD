@@ -1,45 +1,82 @@
 "use client";
-import {
-  Field,
-  FieldDescription,
-  FieldLabel,
-  FieldError,
-} from "@/components/ui/field";
 
-import { toast } from "sonner";
-import {
-  InputGroup,
-  InputGroupInput,
-  InputGroupAddon,
-} from "@/components/ui/input-group";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useEffect, useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import { z } from "zod";
-import { useForm, Controller } from "react-hook-form";
-import { useState, useEffect } from "react";
+
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
-  SelectTrigger,
   SelectContent,
   SelectItem,
+  SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { title } from "process";
-import { describe } from "zod/v4/core";
+import { Textarea } from "@/components/ui/textarea";
 import {
-  getCategories,
-  insertProduct,
-  InsertProducts,
-  uploadImageToServer,
-} from "@/lib/data/products";
+  useAddProductMutation,
+  useGetProductByIdQuery,
+  useUpdateProductMutation,
+} from "@/lib/api/productApi";
+import { getCategories, uploadImageToServer } from "@/lib/data/products";
 import { Category, ProductRequest } from "@/lib/type/product";
 
+const formSchema = z.object({
+  title: z.string().min(5, "Product title at least 5 characters long"),
+  price: z.coerce
+    .number({
+      invalid_type_error: "This field must be a number",
+    })
+    .min(1, { message: "This field is required" }),
+  description: z
+    .string()
+    .min(5, "Product description must be at least 5 characters"),
+  categoryId: z.preprocess(
+    (v) => Number(v),
+    z.number().int().nonnegative(),
+  ),
+  images: z.custom<FileList | null>().optional(),
+});
+
+type ProductFormValues = z.infer<typeof formSchema>;
+
 export default function ProductForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const editIdParam = searchParams.get("editId");
+  const editId = editIdParam ? Number(editIdParam) : null;
+  const isEditMode = Number.isFinite(editId) && (editId ?? 0) > 0;
+
   const [categories, setCategories] = useState<Category[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [fileInputKey, setFileInputKey] = useState(0);
+
+  const form = useForm<ProductFormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      title: "",
+      price: 0,
+      description: "",
+      categoryId: 0,
+      images: null,
+    },
+  });
+
+  const {
+    data: editProduct,
+    isLoading: isLoadingEditProduct,
+    isError: isEditProductError,
+  } = useGetProductByIdQuery(editId as number, {
+    skip: !isEditMode,
+  });
+
+  const [addProduct, { isLoading: isAdding }] = useAddProductMutation();
+  const [updateProduct, { isLoading: isUpdating }] = useUpdateProductMutation();
 
   useEffect(() => {
     async function loadCategories() {
@@ -47,7 +84,7 @@ export default function ProductForm() {
         const data = await getCategories();
         setCategories(data);
       } catch (err) {
-        console.error(err);
+        console.error("Load categories failed", err);
       } finally {
         setLoadingCategories(false);
       }
@@ -56,109 +93,133 @@ export default function ProductForm() {
     loadCategories();
   }, []);
 
-  const formSchema = z.object({
-    title: z.string().min(5, "Product title atleast 5 characters long"),
-    price: z.coerce
-      .number({
-        invalid_type_error: "This field must be a number",
-      })
-      .min(1, { message: "This field is required" }),
-    description: z
-      .string()
-      .min(5, "Product title must be at least 5 characters"),
-    categoryId: z.preprocess(
-      (v) => Number(v),
-      z.number().int().positive("Category is required"),
-    ),
-    images: z
-      .custom<FileList | null>()
-      .refine((files) => files && files.length > 0, "Please choose an image"),
-  });
+  useEffect(() => {
+    if (!isEditMode || !editProduct) return;
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      title: "",
-      price: 0,
-      description: "",
-      categoryId: 0 as unknown as number,
+    form.reset({
+      title: editProduct.title,
+      price: editProduct.price,
+      description: editProduct.description,
+      categoryId: editProduct.category?.id ?? 0,
       images: null,
-    },
-  });
+    });
+    setFileInputKey((current) => current + 1);
+  }, [isEditMode, editProduct, form]);
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    // // console.log(values);
-    // const mockProduct = {
-    //   title: "Mac Mini",
-    //   price: 900,
-    //   descrition: "Mac Mini",
-    //   categoryId: 7,
-    //   images: ["https://api.escuelajs.co/api/v1/files/6840.jpg"],
-    // };
-    // //call insert product to api function
-    // const resp = await insertProduct(mockProduct);
-    // console.log("after insert product:---", resp);
+  const isSubmitting = isAdding || isUpdating;
+
+  const submitLabel = useMemo(
+    () => (isEditMode ? "Update" : "Submit"),
+    [isEditMode],
+  );
+
+  async function onSubmit(values: ProductFormValues) {
+    const effectiveCategoryId = isEditMode
+      ? (editProduct?.category?.id ?? values.categoryId)
+      : values.categoryId;
+
+    if (!isEditMode && effectiveCategoryId <= 0) {
+      form.setError("categoryId", {
+        type: "manual",
+        message: "Category is required",
+      });
+      return;
+    }
+
+    const selectedCategory = categories.find((c) => c.id === effectiveCategoryId);
+    const categoryName = selectedCategory?.name || editProduct?.category?.name || "Unknown Category";
+
     try {
-      const files = values.images!;
-      const filesArray = Array.from(files);
+      let imageUrls = (editProduct?.images as string[] | undefined) ?? [];
+      const hasNewFiles = Boolean(values.images && values.images.length > 0);
 
-      const uploaded = await Promise.all(
-        filesArray.map((f) => uploadImageToServer(f)),
-      );
+      if (hasNewFiles) {
+        const uploaded = await Promise.all(
+          Array.from(values.images as FileList).map((file) =>
+            uploadImageToServer(file),
+          ),
+        );
+        imageUrls = uploaded.map((u) => u.location);
+      }
 
-      const imageUrls = uploaded.map((u) => u.location);
+      if (!isEditMode && imageUrls.length === 0) {
+        toast.error("Please choose an image");
+        return;
+      }
 
       const payload: ProductRequest = {
         title: values.title,
         price: values.price,
-        description: values.description ?? "",
-        categoryId: values.categoryId,
+        description: values.description,
+        categoryId: effectiveCategoryId,
         images: imageUrls,
       };
 
-      const created = await InsertProducts(payload);
+      if (isEditMode && editId) {
+        await updateProduct({ id: editId, body: payload }).unwrap();
+        toast.success(
+          `Update Product ${payload.title} (${categoryName}) successfully`,
+        );
+        router.push("/dashboard/product");
+        return;
+      }
 
-      alert("Product uploaded successfully!");
-
+      await addProduct(payload).unwrap();
+      toast.success(`Create Product ${payload.title} (${categoryName}) successfully`);
       form.reset();
       setFileInputKey((current) => current + 1);
-    } catch (err: any) {
-      alert("Failed to upload product because the items is already exis ");
-      console.error(err);
+    } catch (err) {
+      const title = values.title || editProduct?.title || "product";
+      const message = isEditMode
+        ? `Update Product ${title} (${categoryName}) failed`
+        : `Create Product ${title} (${categoryName}) failed`;
+      toast.error(message);
+      console.error(message, err);
     }
   }
+
   function onReset() {
     form.reset();
     form.clearErrors();
     setFileInputKey((current) => current + 1);
   }
 
+  if (isEditMode && isLoadingEditProduct) {
+    return <div className="p-4 text-sm text-muted-foreground">Loading product...</div>;
+  }
+
+  if (isEditMode && isEditProductError) {
+    return <div className="p-4 text-sm text-destructive">Failed to load product</div>;
+  }
+
   return (
     <form
       onSubmit={form.handleSubmit(onSubmit)}
       onReset={onReset}
-      className="space-y-8 @container"
+      className="w-full rounded-xl border border-border/60 bg-card p-4 shadow-sm md:p-6"
     >
-      <div className="grid grid-cols-12 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5">
         <Controller
           control={form.control}
           name="title"
           render={({ field, fieldState }) => (
             <Field
-              className="col-span-12 col-start-auto flex self-end flex-col gap-2 space-y-0 items-start"
+              className="flex w-full flex-col items-start gap-2 space-y-0"
               data-invalid={fieldState.invalid}
             >
-              <FieldLabel className="flex w-auto!">Product TItle</FieldLabel>
+              <FieldLabel className="flex w-auto!">Product Title</FieldLabel>
 
               <Input
                 key="title"
                 placeholder="Macbook Pro 16 inch"
                 type="text"
                 {...field}
-                className=" border-gray-400"
+                className="border-gray-400"
               />
 
-              {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+              {!isEditMode && fieldState.invalid && (
+                <FieldError errors={[fieldState.error]} />
+              )}
             </Field>
           )}
         />
@@ -167,13 +228,13 @@ export default function ProductForm() {
           name="price"
           render={({ field, fieldState }) => (
             <Field
-              className="col-span-12 col-start-auto flex self-end flex-col gap-2 space-y-0 items-start"
+              className="flex w-full flex-col items-start gap-2 space-y-0"
               data-invalid={fieldState.invalid}
             >
               <FieldLabel className="flex w-auto!">Price</FieldLabel>
 
               <Input
-                className=" border-gray-400"
+                className="border-gray-400"
                 key="number-input-0"
                 placeholder="2000 USD"
                 type="number"
@@ -189,7 +250,7 @@ export default function ProductForm() {
           name="description"
           render={({ field, fieldState }) => (
             <Field
-              className="col-span-12 col-start-auto flex self-end flex-col gap-2 space-y-0 items-start"
+              className="flex w-full flex-col items-start gap-2 space-y-0 md:col-span-2"
               data-invalid={fieldState.invalid}
             >
               <FieldLabel className="flex w-auto!">
@@ -197,7 +258,7 @@ export default function ProductForm() {
               </FieldLabel>
 
               <Textarea
-                className=" border-gray-400"
+                className="border-gray-400"
                 key="textarea-0"
                 id="textarea-0"
                 placeholder="Product Description"
@@ -213,7 +274,7 @@ export default function ProductForm() {
           name="categoryId"
           render={({ field, fieldState }) => (
             <Field
-              className="col-span-12 col-start-auto flex self-end flex-col gap-2 space-y-0 items-start"
+              className="flex w-full flex-col items-start gap-2 space-y-0"
               data-invalid={fieldState.invalid}
             >
               <FieldLabel className="flex w-auto!">Category</FieldLabel>
@@ -223,8 +284,12 @@ export default function ProductForm() {
                 value={String(field.value)}
                 name={field.name}
                 onValueChange={field.onChange}
+                disabled={isEditMode}
               >
-                <SelectTrigger className="w-full  border-gray-400">
+                <SelectTrigger
+                  className="w-full border-gray-400"
+                  disabled={loadingCategories || isEditMode}
+                >
                   <SelectValue placeholder="Please Choose Category" />
                 </SelectTrigger>
                 <SelectContent>
@@ -245,14 +310,16 @@ export default function ProductForm() {
           name="images"
           render={({ field, fieldState }) => (
             <Field
-              className="col-span-12 col-start-auto flex self-end flex-col gap-2 space-y-0 items-start"
+              className="flex w-full flex-col items-start gap-2 space-y-0 md:col-span-2"
               data-invalid={fieldState.invalid}
             >
-              <FieldLabel className="flex w-auto!">Choose Images</FieldLabel>
+              <FieldLabel className="flex w-auto!">
+                {isEditMode ? "Choose New Images (Optional)" : "Choose Images"}
+              </FieldLabel>
 
               <Input
-                className=" border-gray-400"
-                key={setFileInputKey}
+                className="border-gray-400"
+                key={fileInputKey}
                 type="file"
                 multiple
                 onChange={(e) => field.onChange(e.target.files)}
@@ -265,57 +332,29 @@ export default function ProductForm() {
             </Field>
           )}
         />
+        <Button
+          key="submit-button-0"
+          id="submit"
+          name=""
+          className="w-full"
+          type="submit"
+          variant="default"
+          disabled={isSubmitting}
+        >
+          {submitLabel}
+        </Button>
 
-        <Controller
-          control={form.control}
-          name="submit"
-          render={({ field, fieldState }) => (
-            <Field
-              className="col-span-12 col-start-auto flex self-end flex-col gap-2 space-y-0 items-start"
-              data-invalid={fieldState.invalid}
-            >
-              <FieldLabel className="hidden w-auto!">Submit</FieldLabel>
-
-              <Button
-                key="submit-button-0"
-                id="submit"
-                name=""
-                className="w-full"
-                type="submit"
-                variant="default"
-              >
-                Submit
-              </Button>
-
-              {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-            </Field>
-          )}
-        />
-        <Controller
-          control={form.control}
-          name="reset"
-          render={({ field, fieldState }) => (
-            <Field
-              className="col-span-12 col-start-auto flex self-end flex-col gap-2 space-y-0 items-start"
-              data-invalid={fieldState.invalid}
-            >
-              <FieldLabel className="hidden w-auto!">Reset</FieldLabel>
-
-              <Button
-                key="reset-button-0"
-                id="reset"
-                name=""
-                className="w-full  border-gray-400"
-                type="reset"
-                variant="outline"
-              >
-                Reset
-              </Button>
-
-              {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-            </Field>
-          )}
-        />
+        <Button
+          key="reset-button-0"
+          id="reset"
+          name=""
+          className="w-full border-gray-400"
+          type="reset"
+          variant="outline"
+          disabled={isSubmitting}
+        >
+          Reset
+        </Button>
       </div>
     </form>
   );

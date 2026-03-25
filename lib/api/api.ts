@@ -5,4 +5,5 @@ export const fakeStoreApi = createApi({
   reducerPath: "fakeStoreApi",
   baseQuery: fetchBaseQuery({ baseUrl: process.env.NEXT_PUBLIC_API }),
   endpoints: () => ({}),
+  tagTypes: ["products"],
 });
